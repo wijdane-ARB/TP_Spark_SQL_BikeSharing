@@ -1,106 +1,128 @@
-# TP Spark SQL — Bike Sharing (Java, Spark 4.0.1)
+# TP Apache Spark SQL — Analyse d'un système de location de vélos
 
 **ENSET Mohammedia · Master SDA · Big Data**  
-**Auteur : Wijdane Aarroub · Groupe 7 · Worker 1**
+**Réalisé par : Wijdane Aarroub — Groupe 7**  
+**Statut : exécution locale et exécution distribuée sur YARN validées (14 novembre 2026)**
 
-> **Jeu de données pédagogique SYNTHÉTIQUE** : le document `TP_Spark_SQL_en (2).pdf` décrit `bike_sharing.csv`, mais aucun CSV réel n'a été fourni. Le CSV inclus (60 locations) sert à exécuter et valider les requêtes ; ses chiffres ne doivent pas être présentés comme des résultats du dataset original du professeur.
+## Présentation
 
-## Objectif
+Ce projet Java/Maven répond aux **six parties** du TP Spark SQL sur l'analyse d'un système de location de vélos. L'application utilise les API **DataFrame** et **Spark SQL**, puis s'exécute localement dans IntelliJ IDEA et sur un cluster Hadoop **YARN** hébergé sur Oracle Cloud Infrastructure (OCI).
 
-Implémenter les **6 sections** de l'exercice Spark SQL de location de vélos :
+> **Données synthétiques.** Le sujet du TP décrit la structure de `bike_sharing.csv` sans fournir le jeu de données. Le CSV fourni avec ce projet contient **60 lignes générées à des fins pédagogiques**. Les résultats ci-dessous ne représentent **pas** des données réelles ni un fichier original de l'enseignant.
 
-| Partie | Travaux inclus |
+## Objectifs et fonctionnalités
+
+| Partie | Réalisation |
 |---|---|
-| 1. Data Loading & Exploration | Charger CSV, afficher schéma, 5 lignes, compter les locations |
-| 2. Temporary View | Créer `bike_rentals_view` |
-| 3. Basic SQL Queries | Durée > 30 min ; Station A ; chiffre d'affaires total |
-| 4. Aggregation Queries | Locations par station ; durée moyenne ; station la plus populaire |
-| 5. Time-Based Analysis | Heure de départ ; fréquentation horaire ; station de 7 h à 12 h incluses |
-| 6. User Behavior Analysis | Âge moyen ; utilisateurs distincts par genre ; groupes 18–30, 31–40, 41–50, 51+ |
+| 1. Exploration | Charger le CSV ; `printSchema()` ; cinq premières lignes ; nombre de locations |
+| 2. Vue temporaire | Créer `bike_rentals_view` avec `createOrReplaceTempView()` |
+| 3. Requêtes simples | Durée > 30 min ; départ de Station A ; recette totale |
+| 4. Agrégations | Locations par station ; durée moyenne ; station la plus populaire |
+| 5. Analyse temporelle | Extraction de l'heure ; heures de pointe ; station la plus populaire de 7 h à 12 h incluses |
+| 6. Comportement utilisateur | Âge moyen ; répartition des locations par genre ; tranches d'âge 18–30, 31–40, 41–50 et 51+ |
 
-Le fichier `DemoVentesProduits.java` reprend également le **code de démonstration de l'enseignant** (`ventes_produits.csv`, Casablanca, prix > 10000, tri, regroupement et SQL). Ce n'est pas l'exercice Bike Sharing.
+L'application finale inclut aussi des requêtes `spark.sql(...)` sur la vue temporaire afin de montrer le traitement SQL en complément de l'API DataFrame.
 
-## Architecture du projet
+## Technologies
+
+- **Java 17** (cible de compilation), **JDK 21** utilisé pour l'exécution IntelliJ sous Windows ; ne pas utiliser JDK 24 avec cette configuration.
+- **Apache Spark 4.0.1**, module Maven `spark-sql_2.13`.
+- **Maven**, **IntelliJ IDEA**, fichiers CSV.
+- **HDFS** pour le stockage du dataset, **YARN** pour l'ordonnancement, **Oracle Cloud** pour les VM.
+
+## Organisation du projet
 
 ```text
 TP_Spark_SQL_BikeSharing/
 ├── pom.xml
 ├── README.md
-├── bike_sharing.csv              # DONNÉES SYNTHÉTIQUES
-├── ventes_produits.csv           # Exemple pédagogique
-├── .gitignore
+├── bike_sharing.csv                 # Dataset synthétique (60 locations)
+├── ventes_produits.csv              # Exemple d'introduction
 ├── src/main/java/ma/enset/
-│   ├── Main.java                 # Exercices bike-sharing 1 à 6
-│   └── DemoVentesProduits.java   # Exemple du professeur
-└── docs/
-    ├── GUIDE_ETAPES.md
-    └── ATELIER_SPARK_STANDALONE.md
+│   ├── Main.java                    # TP Bike Sharing
+│   └── DemoVentesProduits.java      # Exemple de ventes du professeur
+├── docs/
+│   ├── GUIDE_ETAPES.md
+│   └── ATELIER_SPARK_STANDALONE.md
+└── target/                         # Généré par Maven, non versionné
 ```
 
-## Prérequis
+Le fichier `DemoVentesProduits.java` constitue un **exemple pédagogique distinct** (ventes par ville, filtres sur les prix, tri et regroupement).
 
-- Windows / IntelliJ IDEA ; **JDK 17 ou 21** pour lancer Maven ; bytecode **Java 17**.
-- Dépendance Maven `spark-sql_2.13:4.0.1` en portée `provided` (Spark est fourni par le lanceur à l'exécution).
-- Oracle Cloud : Master `10.0.0.194` (Spark 4.0.1, Hadoop 3.4.2, Java 17) et Worker 1 `10.0.0.165` (Hadoop 3.5.0, Java 17).
-- Ce projet est **distinct du TP RDD précédent**.
+## Exécuter localement dans IntelliJ
 
-## 1. Ouvrir dans IntelliJ et exécuter localement
+1. Ouvrir le dossier contenant `pom.xml` et importer le projet Maven.
+2. Configurer le SDK du projet et le **JRE de la configuration `Main` sur JDK 21** (cible de compilation : Java 17).
+3. Pour un lancement direct avec IntelliJ, inclure les dépendances Spark au **classpath d'exécution**. Si la dépendance Maven a le scope `provided`, configurer l'IDE pour inclure ce scope ou retirer temporairement `provided` pour le test local.
+4. Dans **Run → Edit Configurations → Main**, définir la **working directory** sur la racine contenant `bike_sharing.csv`.
+5. Si le `Main.java` utilise une session sans `.master(...)`, saisir dans les **VM options** :
 
-1. Extraire l'archive et **ouvrir le dossier qui contient `pom.xml`**.
-2. Laisser IntelliJ importer Maven et choisir un JDK 17 ou 21.
-3. Ouvrir `src/main/java/ma/enset/Main.java`.
-4. Dans **Run → Edit Configurations → Main**, définir :
-   - **VM options** : `-Dspark.master=local[*]`
-   - **Working directory** : racine du projet `TP_Spark_SQL_BikeSharing` (là où se trouve `bike_sharing.csv`).
-5. Exécuter `Main` et vérifier les 6 parties, puis prendre les captures demandées.
-6. Exécuter `DemoVentesProduits` avec les mêmes réglages pour le code d'introduction du professeur.
+   ```text
+   -Dspark.master=local[*]
+   ```
 
-**Important :** le code ne force pas `.master("local[*]")`. Le master se définit par IntelliJ en local et par `spark-submit --master ...` sur le cluster.
+6. Lancer `ma.enset.Main` ; vérifier le schéma, les six parties, les requêtes SQL, puis `Process finished with exit code 0`.
 
-## 2. Compiler le projet (Maven)
+**Dépannage IntelliJ :** les avertissements `Unable to resolve table 'bike_rentals_view'` relèvent des inspections SQL de l'IDE : la vue n'existe qu'au moment de l'exécution Spark. Les avertissements Windows concernant `winutils.exe` peuvent apparaître sans empêcher le TP de s'exécuter. Les erreurs `NoClassDefFoundError` indiquent un problème de classpath ; l'erreur `getSubject is not supported` a été corrigée en passant de JDK 24 à JDK 21.
 
-Dans IntelliJ : **Maven → Lifecycle → package**. Le Maven système `mvn` n'est pas indispensable.
+## Construire le JAR
 
-Ou si Maven est disponible dans votre terminal :
+Dans PowerShell, à la racine du projet :
 
 ```powershell
 mvn clean package -DskipTests
+Test-Path '.\target\tp-spark-sql-bike-sharing-1.0-SNAPSHOT.jar'
 ```
 
-JAR attendu : `target/tp-spark-sql-bike-sharing-1.0-SNAPSHOT.jar`.
+**Résultat validé :** compilation Maven réussie et `Test-Path` renvoyant `True`.
 
-## 3. Copier les fichiers sur le Master OCI (PowerShell Windows)
+Pour un JAR destiné à `spark-submit`, conserver la dépendance Spark en scope `provided` afin que Spark fourni par le cluster soit utilisé. Le build crée :
 
-La clé privée doit rester sur votre ordinateur et **ne jamais être ajoutée au dépôt**.
+```text
+target/tp-spark-sql-bike-sharing-1.0-SNAPSHOT.jar
+```
+
+## Infrastructure OCI utilisée
+
+| VM | IP privée | Rôle dans cet exercice |
+|---|---|---|
+| Master | `10.0.0.194` | Client `spark-submit`, driver en mode client, HDFS et ResourceManager YARN |
+| Worker 1 | `10.0.0.165` | DataNode et NodeManager YARN disponibles pour les conteneurs |
+
+L'application est soumise **à YARN**. Le statut YARN confirme la réussite de l'application ; il ne prouve pas à lui seul sur quel Worker les executors ont été placés.
+
+## Transférer le JAR et le dataset sur le Master
+
+Les commandes suivantes sont à lancer depuis **PowerShell Windows** ; remplacer le chemin de clé par celui de votre propre machine. **Ne jamais publier la clé privée SSH.**
 
 ```powershell
-$key = 'CHEMIN_DE_VOTRE_CLE_SSH_MASTER'  # A remplacer localement
-$project = 'D:\TP_Spark_SQL_BikeSharing'  # Adapter au chemin exact
+$key = 'CHEMIN_LOCAL_VERS_LA_CLE_SSH_MASTER'
+$project = 'D:\TP_Spark_SQL_BikeSharing'
 
 scp -i $key "$project\target\tp-spark-sql-bike-sharing-1.0-SNAPSHOT.jar" ubuntu@84.8.218.147:/home/ubuntu/
 scp -i $key "$project\bike_sharing.csv" ubuntu@84.8.218.147:/home/ubuntu/
 ssh -i $key ubuntu@84.8.218.147
 ```
 
-## 4. Mettre les données dans HDFS (sur le Master)
+**Vérifié :** les deux transferts SCP se sont terminés avec `100 %`.
+
+## Stocker le CSV dans HDFS
+
+Sur la VM Master :
 
 ```bash
 hdfs dfs -mkdir -p /user/ubuntu/tp-spark-sql
-hdfs dfs -put -f ~/bike_sharing.csv /user/ubuntu/tp-spark-sql/
-hdfs dfs -ls /user/ubuntu/tp-spark-sql
-hdfs dfs -cat /user/ubuntu/tp-spark-sql/bike_sharing.csv | head -n 6
+hdfs dfs -put -f /home/ubuntu/bike_sharing.csv /user/ubuntu/tp-spark-sql/
+hdfs dfs -ls /user/ubuntu/tp-spark-sql/
 ```
 
-## 5. Exécuter Spark SQL sur YARN (Master + Worker 1)
+**Vérifié :** le fichier `/user/ubuntu/tp-spark-sql/bike_sharing.csv` apparaît dans HDFS, taille **4 950 octets**.
 
-**Ce mode YARN est celui que nous avons déjà validé avec le TP Spark RDD. Il diffère du mode Spark Standalone du second PDF.**
+## Exécuter l'application sur YARN
+
+Sur la VM Master :
 
 ```bash
-export SPARK_HOME=/opt/spark
-export HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
-export YARN_CONF_DIR=/opt/hadoop/etc/hadoop
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-
 /opt/spark/bin/spark-submit \
   --master yarn \
   --deploy-mode client \
@@ -114,33 +136,51 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
   --conf spark.executor.memory=1g \
   --conf spark.executor.cores=1 \
   /home/ubuntu/tp-spark-sql-bike-sharing-1.0-SNAPSHOT.jar \
-  hdfs:///user/ubuntu/tp-spark-sql/bike_sharing.csv \
-  2>&1 | tee ~/tp-spark-sql-yarn.log
+  hdfs:///user/ubuntu/tp-spark-sql/bike_sharing.csv
 ```
 
-Après exécution :
+Cette commande utilise les **ports du driver déjà employés dans le TP Spark RDD**, sans modifier les règles réseau du cluster.
+
+Vérifier le résultat YARN :
 
 ```bash
 yarn application -list -appStates ALL
-grep -E 'Total rentals:|total_revenue|FIN DU TP|hadoop-worker1|ERROR|Exception' ~/tp-spark-sql-yarn.log | tail -30
 ```
 
-Avec **deux DataNodes et deux NodeManagers** précédemment validés, l'ordonnanceur YARN peut choisir n'importe quel nœud disponible. Pour attester l'utilisation effective de Worker 1, conserver les lignes d'exécuteur contenant `hadoop-worker1` (si elles apparaissent).
+**Résultat observé le 14/11/2026 :** application `TP-Spark-SQL-BikeSharing`, **`FINISHED`**, **`SUCCEEDED`**, avancement **100 %**. Les résultats des six sections se sont affichés sur le terminal Master.
 
-## 6. Résultats attendus sur les données synthétiques
+## Résultats validés — dataset synthétique
 
-Le fichier fourni contient **60 locations**. Les autres résultats dépendent de ses données. Ils doivent être vérifiés à l'exécution (ne pas supposer qu'ils correspondent au dataset original du professeur).
+| Indicateur | Résultat |
+|---|---:|
+| Nombre total de locations | **60** |
+| Recette totale | **469,08** (unités du dataset, dollars selon l'énoncé) |
+| Station la plus populaire | **Station C — 13 locations** |
+| Durée moyenne à Station E | **40,08 min** |
+| Heure de pointe | **08 h — 10 locations** |
+| Station la plus populaire entre 7 h et 12 h | **Station D — 8 locations** |
+| Âge moyen | **37,5 ans** |
+| Locations effectuées par des femmes | **31** |
+| Locations effectuées par des hommes | **29** |
+| Tranche d'âge la plus représentée | **18–30 ans — 20 locations** |
 
-## 7. Deuxième atelier : Spark Standalone
+**Remarque :** les lignes par genre et âge comptent des **locations**, pas nécessairement des utilisateurs uniques. Les résultats du CSV synthétique ne doivent pas être généralisés à des usagers réels.
 
-Voir [`docs/ATELIER_SPARK_STANDALONE.md`](docs/ATELIER_SPARK_STANDALONE.md).
+## Compte rendu et preuves
 
-Le PDF `Spark_clutser.pdf` demande **1 Spark Master + 2 Spark Workers, le port 7077, l'interface 8080 et un traitement PySpark**, avec la version Spark **4.3.0** indiquée dans les consignes. Notre cluster existant utilise **Spark 4.0.1 sur Master, en mode YARN**. Ne pas prétendre que le TP Standalone est terminé : il faudra installer la même version de Spark sur les Workers, lancer les services Standalone, vérifier l'interface puis exécuter le traitement demandé. Worker 2 est géré par son propre responsable.
+Le compte rendu final en français couvre : environnement local, projet Java et compilation Maven, vue temporaire SQL, six exercices, transfert SCP, HDFS, exécution sur OCI/YARN et contrôle `FINISHED / SUCCEEDED`.
 
-## Compte rendu
+Fichier produit séparément : `Compte_Rendu_TP_Spark_SQL_BikeSharing_Wijdane_Aarroub.pdf`. Il **n'est pas automatiquement présent dans ce dépôt** ; l'ajouter dans `docs/` uniquement si souhaité.
 
-Captures à prévoir : projet et Maven, schéma/5 premières lignes, résultat des 6 parties, listing HDFS, statut YARN, lignes des exécuteurs et application réussie. Les scripts de ce projet ne modifient pas le cluster tant qu'ils ne sont pas soumis.
+Les captures réalisées sont celles de l'exécution locale et du terminal Master. Conserver notamment le schéma, les analyses statistiques, la commande HDFS et le statut final YARN.
 
-## Sécurité
+## Travail distinct : Spark Standalone
 
-Ne jamais publier de clé privée, jeton, fichier `.pem`/`.key`, archive de secrets, ni rendre publics les ports des services internes. Les IP citées sont les IP de démonstration du groupe à vérifier avant exécution.
+Le document `Spark_clutser.pdf` demande **un autre atelier** : un Master Spark Standalone et **deux Workers** connectés au port `7077`, supervisés via l'interface Web `8080`, avec un traitement PySpark. **Ce travail n'est pas attesté par l'exécution YARN ci-dessus.** Voir `docs/ATELIER_SPARK_STANDALONE.md` pour le guide de préparation.
+
+## Sécurité et bonnes pratiques
+
+- Ne jamais versionner les clés `.key`/`.pem`, secrets, fichiers de configuration privés ou identifiants cloud.
+- Garder les interfaces et ports internes Spark/Hadoop accessibles uniquement via réseau privé ou tunnel SSH.
+- Ne pas inclure le dossier `target/` dans Git ; reconstruire les artefacts avec Maven.
+- Relever les preuves réelles d'exécution ; ne pas annoncer une exécution sur Worker 1 sans journal ou vue YARN confirmant l'Executor.
